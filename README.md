@@ -1,16 +1,71 @@
-# React + Vite
+# Binodia Express – Restaurant Web App
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Customer-facing restaurant app built with React (Vite), Tailwind CSS, React Router, and Firebase (Firestore + Storage). Scope includes Home, Menu, Cart, Checkout, and Order Confirmation.
 
-Currently, two official plugins are available:
+## Stack
+- React + Vite (JavaScript)
+- Tailwind CSS
+- React Router
+- Firebase v9 modular SDK (client-only)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Local development
 
-## React Compiler
+1) Install dependencies:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+npm install
+```
 
-## Expanding the ESLint configuration
+2) Update Firebase config:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Edit `src/config/firebase.js` and replace placeholder values:
+
+```js
+const firebaseConfig = {
+  apiKey: 'YOUR_API_KEY',
+  authDomain: 'YOUR_PROJECT_ID.firebaseapp.com',
+  projectId: 'YOUR_PROJECT_ID',
+  storageBucket: 'YOUR_PROJECT_ID.appspot.com',
+  messagingSenderId: 'YOUR_SENDER_ID',
+  appId: 'YOUR_APP_ID',
+};
+```
+
+3) Start the dev server:
+
+```bash
+npm run dev
+```
+
+4) Build for production:
+
+```bash
+npm run build
+```
+
+## Firestore data model
+
+- `Categories`: `{ id: string, name: string }`
+- `Foods`: `{ id: string, name: string, description?: string, category: string, price: number, image_url?: string }`
+- `Orders`:
+  ```js
+  {
+    name: string,
+    email?: string,
+    phone: string,
+    address: string,
+    foods: Array<{ id: string, name: string, price: number, quantity: number }>,
+    totalprice: number,
+    status: 'initiated' | 'preparing' | 'out for delivery' | 'delivered',
+    createdAt: serverTimestamp()
+  }
+  ```
+
+Reads: `Categories`, `Foods`. Writes: `Orders` on checkout.
+
+## Notes
+- Prices are displayed in BDT (৳) via `src/utils/currency.js`.
+- Cart state persists to `localStorage` using `src/hooks/useCart.js`.
+- Menu supports category multi-select and debounced search.
+- Images lazy-load; descriptions are clamped to two lines.
+
