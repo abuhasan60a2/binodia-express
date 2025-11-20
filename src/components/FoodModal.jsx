@@ -11,7 +11,29 @@ export default function FoodModal({ food, categoryMap, isOpen, onClose }) {
   const [loaded, setLoaded] = useState(false);
   const modalRef = useRef(null);
   const inCart = food ? state.items.find((i) => i.id === food.id) : null;
-  const categoryName = food && categoryMap ? categoryMap.get(food.category) : null;
+  
+  // Try to get category name - handle both string IDs and Firestore references
+  let categoryName = null;
+  if (food && categoryMap && food.category) {
+    // Extract category ID - handle Firestore references, strings, and other types
+    let categoryId = food.category;
+    
+    // If it's a Firestore DocumentReference, extract the ID
+    if (food.category?.id) {
+      categoryId = food.category.id;
+    } else if (food.category?.path) {
+      // Extract ID from Firestore reference path (e.g., "Categories/abc123" -> "abc123")
+      categoryId = food.category.path.split('/').pop();
+    }
+    
+    // Normalize to string and trim
+    const normalizedId = String(categoryId || '').trim();
+    
+    // Try multiple lookup strategies
+    categoryName = categoryMap.get(normalizedId) || 
+                   categoryMap.get(categoryId) || 
+                   categoryMap.get(String(categoryId));
+  }
 
   useEffect(() => {
     if (inCart && food) {
@@ -126,7 +148,7 @@ export default function FoodModal({ food, categoryMap, isOpen, onClose }) {
               <h2 id="food-modal-title" className="text-2xl font-bold text-gray-900 mb-2">{food.name}</h2>
               
               {categoryName && (
-                <span className="inline-block mb-3 px-3 py-1 text-sm font-medium rounded-full bg-emerald-50 text-emerald-900 border border-emerald-200">
+                <span className="inline-block mb-3 px-3 py-1 text-sm font-medium rounded-full bg-emerald-600 text-white">
                   {categoryName}
                 </span>
               )}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import Fuse from 'fuse.js';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import CategoryBadge from '../components/CategoryBadge.jsx';
@@ -19,14 +20,23 @@ export default function Menu() {
   const setSearchDebounced = useMemo(() => debounce((v) => setSearch(v), 250), []);
 
   // Create a map for quick category lookup: categoryId -> categoryName
+  // Normalize keys to strings for consistent matching
   const categoryMap = useMemo(() => {
     const map = new Map();
     categories.forEach((c) => {
-      map.set(c.id, c.name);
+      const key = String(c.id || '').trim();
+      if (key) {
+        map.set(key, c.name);
+        // Also store with the original ID type for flexibility
+        if (c.id !== key) {
+          map.set(c.id, c.name);
+        }
+      }
     });
     // Debug: Log category structure
     if (categories.length > 0) {
       console.log('📋 Categories loaded:', categories.map(c => ({ id: c.id, name: c.name, allKeys: Object.keys(c) })));
+      console.log('📋 CategoryMap keys:', Array.from(map.keys()));
     }
     return map;
   }, [categories]);
@@ -55,32 +65,83 @@ export default function Menu() {
     return unique.sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
   }, [categories]);
 
+  // Prepare foods with category names for fuzzy search
+  const searchableFoods = useMemo(() => {
+    return foods.map((f) => {
+      // Extract category ID and get category name
+      let categoryId = f.category;
+      if (f.category?.id) {
+        categoryId = f.category.id;
+      } else if (f.category?.path) {
+        categoryId = f.category.path.split('/').pop();
+      }
+      const normalizedCategoryId = String(categoryId || '').trim();
+      const categoryName = categoryMap.get(normalizedCategoryId) || categoryMap.get(categoryId) || '';
+      
+      return {
+        ...f,
+        categoryName: categoryName,
+        // Convert price to string for searching
+        priceString: String(f.price || ''),
+      };
+    });
+  }, [foods, categoryMap]);
+
+  // Create Fuse instance for fuzzy search
+  const fuse = useMemo(() => {
+    return new Fuse(searchableFoods, {
+      keys: [
+        { name: 'name', weight: 0.4 },           // Highest weight for name
+        { name: 'description', weight: 0.3 },    // Medium weight for description
+        { name: 'categoryName', weight: 0.2 },   // Lower weight for category
+        { name: 'priceString', weight: 0.1 },    // Lowest weight for price
+      ],
+      threshold: 0.4,        // 0.0 = perfect match, 1.0 = match anything (0.4 = good fuzzy matching)
+      distance: 100,          // Maximum distance to search in the text
+      ignoreLocation: true,   // Search anywhere in the text
+      minMatchCharLength: 1,  // Minimum character length to match
+      includeScore: true,     // Include relevance scores
+      shouldSort: true,       // Sort results by relevance
+    });
+  }, [searchableFoods]);
+
   const filtered = useMemo(() => {
-    const lower = search.trim().toLowerCase();
-    const hasFilter = selected.size > 0;
+    const hasCategoryFilter = selected.size > 0;
+    const hasSearchQuery = search.trim().length > 0;
     
-    // Debug logging - expand arrays for inspection
-    if (hasFilter && foods.length > 0) {
-      const selectedIds = Array.from(selected);
-      const firstFood = foods[0];
-      console.log('🔍 Filtering Debug:');
-      console.log('  Selected IDs:', selectedIds);
-      console.log('  First food category:', firstFood?.category);
-      console.log('  Will match?', selectedIds.some(id => String(id).trim() === String(firstFood?.category || '').trim()));
-      console.log('  Burger category ID:', categories.find(c => c.name === 'Burger')?.id);
+    // First, filter by category if any categories are selected
+    let categoryFiltered = hasCategoryFilter
+      ? searchableFoods.filter((f) => {
+          let categoryId = f.category;
+          if (f.category?.id) {
+            categoryId = f.category.id;
+          } else if (f.category?.path) {
+            categoryId = f.category.path.split('/').pop();
+          }
+          const foodCategoryId = String(categoryId || '').trim();
+          return Array.from(selected).some(selectedId => String(selectedId).trim() === foodCategoryId);
+        })
+      : searchableFoods;
+    
+    // Then apply fuzzy search if there's a search query
+    if (hasSearchQuery) {
+      const searchResults = fuse.search(search.trim());
+      const searchResultIds = new Set(searchResults.map(result => result.item.id));
+      
+      // Filter category-filtered results to only include those that match the search
+      categoryFiltered = categoryFiltered.filter(f => searchResultIds.has(f.id));
+      
+      // Sort by search relevance (best matches first)
+      const resultMap = new Map(searchResults.map(r => [r.item.id, r.score]));
+      categoryFiltered.sort((a, b) => {
+        const scoreA = resultMap.get(a.id) ?? 1;
+        const scoreB = resultMap.get(b.id) ?? 1;
+        return scoreA - scoreB; // Lower score = better match
+      });
     }
     
-    return foods.filter((f) => {
-      // Compare food.category (ID) with selected category IDs
-      // Ensure both are strings for comparison
-      const foodCategoryId = String(f.category || '').trim();
-      const inCategory = hasFilter 
-        ? Array.from(selected).some(selectedId => String(selectedId).trim() === foodCategoryId)
-        : true;
-      const inSearch = lower ? ((f.name || '').toLowerCase().includes(lower) || (f.description || '').toLowerCase().includes(lower)) : true;
-      return inCategory && inSearch;
-    });
-  }, [foods, selected, search, categoryMap]);
+    return categoryFiltered;
+  }, [searchableFoods, selected, search, fuse]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -102,7 +163,7 @@ export default function Menu() {
           <input
             id="search"
             type="search"
-            placeholder="Search by name or description"
+            placeholder="Search by name, description, category, or price (fuzzy search)"
             value={query}
             onChange={(e) => { setQuery(e.target.value); setSearchDebounced(e.target.value); }}
             className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-600"

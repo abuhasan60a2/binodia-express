@@ -14,10 +14,11 @@ export function useCategories() {
       setError(null);
       try {
         const snap = await getDocs(collection(db, 'Categories'));
-        // Ensure Firestore document ID is preserved (d.data() might have an 'id' field that overwrites it)
+        // Use the 'id' field from within the document data, not the Firestore document ID
         const list = snap.docs.map((d) => {
           const data = d.data();
-          return { ...data, id: d.id }; // Firestore doc ID takes precedence
+          // Preserve the document's 'id' field if it exists, otherwise use Firestore doc ID as fallback
+          return { ...data, id: data.id ?? d.id };
         });
         list.sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
         if (mounted) setData(list);

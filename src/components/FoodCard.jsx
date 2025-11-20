@@ -5,7 +5,43 @@ import FoodModal from './FoodModal.jsx';
 export default function FoodCard({ food, categoryMap }) {
   const [loaded, setLoaded] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const categoryName = categoryMap?.get(food.category) || null;
+  
+  // Try to get category name - handle both string IDs and Firestore references
+  let categoryName = null;
+  if (categoryMap && food.category) {
+    // Extract category ID - handle Firestore references, strings, and other types
+    let categoryId = food.category;
+    
+    // If it's a Firestore DocumentReference, extract the ID
+    if (food.category?.id) {
+      categoryId = food.category.id;
+    } else if (food.category?.path) {
+      // Extract ID from Firestore reference path (e.g., "Categories/abc123" -> "abc123")
+      categoryId = food.category.path.split('/').pop();
+    }
+    
+    // Normalize to string and trim
+    const normalizedId = String(categoryId || '').trim();
+    
+    // Try multiple lookup strategies
+    categoryName = categoryMap.get(normalizedId) || 
+                   categoryMap.get(categoryId) || 
+                   categoryMap.get(String(categoryId));
+    
+    // Debug logging (remove after fixing)
+    if (!categoryName) {
+      console.log('FoodCard Debug - Category not found:', {
+        foodId: food.id,
+        foodName: food.name,
+        foodCategory: food.category,
+        foodCategoryType: typeof food.category,
+        extractedCategoryId: categoryId,
+        normalizedId: normalizedId,
+        categoryMapKeys: Array.from(categoryMap.keys()),
+        categoryMapSize: categoryMap.size
+      });
+    }
+  }
 
   return (
     <>
@@ -40,7 +76,7 @@ export default function FoodCard({ food, categoryMap }) {
         </div>
         <div className="p-4">
           {categoryName && (
-            <span className="inline-block mb-2 px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-50 text-emerald-900 border border-emerald-200">
+            <span className="inline-block mb-2 px-2.5 py-1 text-xs font-medium rounded-full bg-emerald-600 text-white">
               {categoryName}
             </span>
           )}
