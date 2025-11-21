@@ -69,6 +69,37 @@ export default function Order() {
             <div className="mt-6 h-24 bg-gray-100 animate-pulse rounded-lg" />
           ) : order ? (
             <>
+              {/* Customer Information */}
+              <div className="mt-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Delivery Information</h2>
+                <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Name</p>
+                      <p className="text-sm font-medium text-gray-900">{order.name || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Phone</p>
+                      <p className="text-sm font-medium text-gray-900">{order.phone || '—'}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Email</p>
+                    <p className="text-sm font-medium text-gray-900">{order.email || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Address</p>
+                    <p className="text-sm font-medium text-gray-900">{order.address || '—'}</p>
+                  </div>
+                  {order.instructions && (
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Special Instructions</p>
+                      <p className="text-sm text-gray-700">{order.instructions}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Order Status Tracker */}
               <div className="mt-6">
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">Order Status</h2>
