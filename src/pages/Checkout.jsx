@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import emailjs from '@emailjs/browser';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import { useCart } from '../hooks/useCart.jsx';
@@ -9,7 +10,11 @@ import { db } from '../config/firebase.js';
 import { useToast } from '../components/Toast.jsx';
 
 export default function Checkout() {
-  useEffect(() => { document.title = 'Binodia Express – Checkout'; }, []);
+  useEffect(() => { 
+    document.title = 'Binodia Express – Checkout';
+    // Initialize EmailJS with public key
+    emailjs.init('QNrdyu5Ekgahhk8sB');
+  }, []);
   const { state, subtotal, total, clearCart } = useCart();
   const { add } = useToast();
   const nav = useNavigate();
@@ -22,6 +27,10 @@ export default function Checkout() {
     const e = {};
     if (!form.name.trim()) e.name = 'Required';
     if (!form.phone.trim()) e.phone = 'Required';
+    if (!form.email.trim()) e.email = 'Required';
+    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      e.email = 'Invalid email address';
+    }
     if (!form.address.trim()) e.address = 'Required';
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -34,7 +43,7 @@ export default function Checkout() {
       setSubmitting(true);
       const order = {
         name: form.name.trim(),
-        email: form.email.trim() || undefined,
+        email: form.email.trim(),
         phone: form.phone.trim(),
         address: form.address.trim(),
         instructions: form.instructions.trim() || undefined,
@@ -45,6 +54,25 @@ export default function Checkout() {
       };
       const docRef = await addDoc(collection(db, 'Orders'), order);
       const shortId = docRef.id.slice(-6).toUpperCase();
+      
+      // Send tracking email via EmailJS (don't block order placement if it fails)
+      const trackingLink = `https://binodia-express.vercel.app/order/${docRef.id}`;
+      try {
+        await emailjs.send(
+          'service_g94r9q9',
+          'template_ypib9ik',
+          {
+            to_email: form.email.trim(),
+            to_name: form.name.trim(),
+            order_id: shortId,
+            tracking_link: trackingLink,
+          }
+        );
+      } catch (emailError) {
+        // Log error but don't block order placement
+        console.error('Failed to send tracking email:', emailError);
+      }
+      
       add(`Order placed! ID: ${shortId}`, 'success');
       clearCart();
       nav(`/order/${docRef.id}`);
@@ -66,6 +94,9 @@ export default function Checkout() {
               <label className="block text-sm text-gray-600 mb-1" htmlFor="name">Name *</label>
               <input 
                 id="name" 
+                name="name"
+                type="text"
+                autoComplete="name"
                 value={form.name} 
                 onChange={(e) => {
                   setForm({ ...form, name: e.target.value });
@@ -82,6 +113,9 @@ export default function Checkout() {
                 <label className="block text-sm text-gray-600 mb-1" htmlFor="phone">Phone *</label>
                 <input 
                   id="phone" 
+                  name="phone"
+                  type="tel"
+                  autoComplete="tel"
                   value={form.phone} 
                   onChange={(e) => {
                     setForm({ ...form, phone: e.target.value });
@@ -94,15 +128,31 @@ export default function Checkout() {
                 {errors.phone && <p className="text-xs text-rose-600 mt-1">{errors.phone}</p>}
               </div>
               <div>
-                <label className="block text-sm text-gray-600 mb-1" htmlFor="email">Email</label>
-                <input id="email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-600" />
+                <label className="block text-sm text-gray-600 mb-1" htmlFor="email">Email *</label>
+                <input 
+                  id="email" 
+                  name="email"
+                  type="email" 
+                  autoComplete="email"
+                  value={form.email} 
+                  onChange={(e) => {
+                    setForm({ ...form, email: e.target.value });
+                    if (errors.email) setErrors({ ...errors, email: '' });
+                  }} 
+                  className={`w-full rounded-lg border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-600 ${
+                    errors.email ? 'border-rose-300 focus:ring-rose-500' : 'border-gray-300'
+                  }`}
+                />
+                {errors.email && <p className="text-xs text-rose-600 mt-1">{errors.email}</p>}
               </div>
             </div>
             <div>
               <label className="block text-sm text-gray-600 mb-1" htmlFor="address">Address *</label>
               <textarea 
                 id="address" 
-                rows={3} 
+                name="address"
+                rows={3}
+                autoComplete="street-address"
                 value={form.address} 
                 onChange={(e) => {
                   setForm({ ...form, address: e.target.value });
@@ -116,7 +166,15 @@ export default function Checkout() {
             </div>
             <div>
               <label className="block text-sm text-gray-600 mb-1" htmlFor="instructions">Instructions</label>
-              <textarea id="instructions" rows={2} value={form.instructions} onChange={(e) => setForm({ ...form, instructions: e.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-600" />
+              <textarea 
+                id="instructions" 
+                name="instructions"
+                rows={2} 
+                autoComplete="off"
+                value={form.instructions} 
+                onChange={(e) => setForm({ ...form, instructions: e.target.value })} 
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-600" 
+              />
             </div>
 
             <button
